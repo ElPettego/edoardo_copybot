@@ -2,17 +2,20 @@ from telethon import TelegramClient, events
 import telegram_message_bot as tmb
 import asyncio
 import time
+import math
 
 # DESTINAZIONE  
 masterbet_copygroup_id = '-758425332' # -791394339
 profilazione_copygroup_id = '-688505439'
 surebet_copybot_id = '-689835776'
+trial_surebet_copybot_id = '-1767340741'
 siris_mto_id = '-1001556662774'
 # mto_siris
 
 bot_masterbet_id = tmb.TelegramBot(masterbet_copygroup_id, '5562268182:AAGid-46DqLIYE10NErRt0AhsCD1lks_gBc')
 bot_profilazione_id = tmb.TelegramBot(profilazione_copygroup_id, '5466125587:AAH_t5swghAlVXVdrh4cs8BimLiTejXJbCY')
 bot_surebet_id = tmb.TelegramBot(surebet_copybot_id, '5474218171:AAFQQLxy1kAGFcJAmSJiTJtHVhTmMhvUAe8')
+bot_trial_surebet = tmb.TelegramBot(trial_surebet_copybot_id, '5562062221:AAFEDN0ktt4V59dfmlSy-madZCUyDbKDb1o')
 bot_siris_mto = tmb.TelegramBot(siris_mto_id, '5146180120:AAHNamWx4jsj1oKFzrXsiovwnS8fbju2k2w')
 # bot_mto_id = tmb.TelegramBot(, '')
 
@@ -43,7 +46,7 @@ async def handle_new_message(event):
         print(f'##########################{event.chat_id}#############################')
         print(event)    
         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')    
-        bot_masterbet_id.emit(str(event.raw_text))
+        bot_masterbet_id.emit(str(event.text))
 
     if str(event.chat_id) == profilazione_id:
         print(f'##########################{event.chat_id}#############################')
@@ -58,19 +61,19 @@ async def handle_new_message(event):
         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')  
         raw_mex = str(event.raw_text)
 
-        raw_mex.replace('🚀 ROI:', '💸 PROFITTO MEDIO:').replace('BFSportsbook', 'Betfair')
-
         raw_mex_lines = raw_mex.splitlines()
 
+        print(raw_mex)
+
         first_bet = False
+
+        # header_profit = ''
         
         for line in raw_mex_lines:
-            if '💸 Profit Medio:' in line:
-                header_profit = line
+            if 'ROI' in line:
+                header_profit = line.replace('ROI', 'PROFITTO MEDIO')
             if '👉' in line:
                 header_books = line.replace('👉', '📚').replace('|', '-')
-            if '🎾' in line or '⚽️' in line or '🏀' in line or '🏐' in line:
-                info_tour = line
             if '✅' in line:
                 info_match = line.replace('✅', '🆚')
             if '🗓' in line:
@@ -80,19 +83,32 @@ async def handle_new_message(event):
             if '2⃣' in line:
                 stake_2 = line.split()[1].replace('€', '')
             if '✨' in line and not first_bet:
-                bet_1 = line.replace('✨', '➡️').replace('|', '-')
+                bet_1 = line.replace('✨', '➡️ ').replace('|', '-')
                 quota_1 = float(bet_1.split('@')[1])
                 first_bet = True
             if '✨' in line and first_bet:
-                bet_2 = line.replace('✨', '➡️').replace('|', '-')
+                bet_2 = line.replace('✨', '➡️ ').replace('|', '-')
                 quota_2 = float(bet_2.split('@')[1])
+
+        info_tour = raw_mex_lines[3]
             
-        stake_1_norm = int(float(stake_1) * 100 / float(stake_2))
-        stake_2_norm = int(float(stake_2) * 100 / float(stake_1))
+        stake_1_norm = round(float(stake_1) * 100 / (float(stake_1) + float(stake_2)))
+        stake_2_norm = round(float(stake_2) * 100 / (float(stake_1) + float(stake_2)))
 
-        str_to_send = f"{info_tour}\n{info_match}\n{info_date}\n\nGIOCATA 1:\n1️⃣ {stake_1_norm} {header_books.split()[1]}\n{bet_1}\nGIOCATA 2:\n2️⃣ {stake_2_norm} {header_books.split()[3]}\n{bet_2}\n\nPROFITTO:\nSPESA: {stake_1_norm+stake_2_norm}\nPROFITTO LORDO: {stake_1*quota_1} - {stake_2*quota_2}\nPROFITTO NETTO: {stake_1*quota_1-stake_1_norm+stake_2_norm} - {stake_2*quota_2-stake_1_norm+stake_2_norm}\n{header_profit}"
+        profitto_lordo_1 = round(stake_1_norm*quota_1, 2)
+        profitto_lordo_2 = round(stake_2_norm*quota_2, 2)
 
-        bot_surebet_id.emit(str_to_send)
+        spesa = stake_1_norm+stake_2_norm
+
+        profitto_medio = (((profitto_lordo_1 - spesa) / spesa * 100) + ((profitto_lordo_2 - spesa) / spesa * 100)) / 2
+
+        str_to_send = '🚨 SUREBET ALERT\n\n' + header_books  + '\n' + info_tour + '\n'+ info_match + '\n' + info_date + '\n\n📝 GIOCATA 1:\n1️.  ' + str(stake_1_norm) + '€ ' + header_books.split()[1] + '\n' + bet_1 + '\n\n📝 GIOCATA 2:\n2️.  ' + str(stake_2_norm) + '€ ' + header_books.split()[3] + '\n' + bet_2 + '\n\n💰 PROFITTO:\n🛒 SPESA: ' + str(spesa) + '€\n🤑 PROFITTO LORDO: ' + str(profitto_lordo_1) + '€ - ' + str(profitto_lordo_2) + '€\n💸 PROFITTO NETTO: ' + str(round(profitto_lordo_1-spesa, 2)) + '€ - ' + str(round(profitto_lordo_2-spesa, 2)) + '€\n🚀 PROFITTO MEDIO: ' + str(round(profitto_medio, 2)) + '%'
+
+        if profitto_medio < 7: 
+            bot_surebet_id.emit(str_to_send)
+            bot_trial_surebet.emit(str_to_send)
+        if profitto_medio >= 7:
+            bot_surebet_id.emit(str_to_send)
 
     if str(event.chat_id) == masterbet_bot_id:
         print(f'##########################{event.chat_id}#############################')
